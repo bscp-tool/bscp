@@ -15,22 +15,20 @@
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 import hashlib
+import struct
 import subprocess
 import sys
-
-class RemoteError(RuntimeError):
-    pass
 
 remote_script = r'''
 import hashlib
 import os
 import os.path
+import struct
 import sys
 
-filename = sys.stdin.readline().rstrip('\n')
-size = int(sys.stdin.readline().rstrip('\n'))
-blocksize = int(sys.stdin.readline().rstrip('\n'))
-hashname = sys.stdin.readline().rstrip('\n')
+(size, blocksize, filename_len, hashname_len) = struct.unpack('<QQQQ', sys.stdin.read(4 * 8))
+filename = sys.stdin.read(filename_len)
+hashname = sys.stdin.read(hashname_len)
 
 if not os.path.exists(filename):
     # Create sparse file
@@ -43,19 +41,18 @@ with open(filename, 'rb+') as f:
     if f.tell() != size:
         raise RuntimeError('Size mismatch (local: %i, remote: %i)' % (size, f.tell()))
     f.seek(0)
-    sys.stdout.write('OK bscp 2a41278c-55e2-4e42-b1b5-847723b45225\n')
     while True:
         block = f.read(blocksize)
         if len(block) == 0:
             break
-        hexdigest = hashlib.new(hashname, block).hexdigest()
-        sys.stdout.write('%s\n' % (hexdigest,))
+        digest = hashlib.new(hashname, block).digest()
+        sys.stdout.write(digest)
     sys.stdout.flush()
     while True:
-        position_s = sys.stdin.readline()
+        position_s = sys.stdin.read(8)
         if len(position_s) == 0:
             break
-        position = int(position_s.rstrip('\n'))
+        (position,) = struct.unpack('<Q', position_s)
         block = sys.stdin.read(blocksize)
         f.seek(position)
         f.write(block)
@@ -66,10 +63,11 @@ with open(filename, 'rb+') as f:
         if len(block) == 0:
             break
         hash_total.update(block)
-sys.stdout.write('%s\n' % (hash_total.hexdigest(),))
+sys.stdout.write(hash_total.digest())
 '''
 
 def bscp(local_filename, remote_host, remote_filename, blocksize, hashname):
+    hash_total = hashlib.new(hashname)
     with open(local_filename, 'rb') as f:
         f.seek(0, 2)
         size = f.tell()
@@ -82,32 +80,27 @@ def bscp(local_filename, remote_host, remote_filename, blocksize, hashname):
         command = ('ssh', '--', remote_host, '--', remote_command)
         p = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
-        if '\n' in remote_filename:
-            raise RuntimeError('Invalid remote filename: %r' % (remote_filename,))
-        if '\n' in hashname:
-            raise RuntimeError('Invalid hash: %r' % (hashname,))
-        p.stdin.write('%s\n%i\n%i\n%s\n' % (remote_filename, size, blocksize, hashname))
+        p.stdin.write(struct.pack('<QQQQ', size, blocksize, len(remote_filename), len(hashname)))
+        p.stdin.write(remote_filename)
+        p.stdin.write(hashname)
 
-        remote_first = p.stdout.readline()
-        if remote_first != 'OK bscp 2a41278c-55e2-4e42-b1b5-847723b45225\n':
-            (remote_remaining_output, _) = p.communicate(None)
-            raise RemoteError(remote_first + remote_remaining_output)
+        remote_digest_list = [p.stdout.read(hash_total.digestsize) for i in xrange(blockcount)]
 
-        remote_hexdigest_list = [p.stdout.readline().rstrip('\n') for i in xrange(blockcount)]
-
-        hash_total = hashlib.new(hashname)
-        for remote_hexdigest in remote_hexdigest_list:
+        for remote_digest in remote_digest_list:
             position = f.tell()
             block = f.read(blocksize)
             hash_total.update(block)
-            hexdigest = hashlib.new(hashname, block).hexdigest()
-            if hexdigest != remote_hexdigest:
-                p.stdin.write('%i\n' % (position,))
-                p.stdin.write(block)
-
-        (remote_output, _) = p.communicate(None)
-        if remote_output != '%s\n' % (hash_total.hexdigest(),):
-            raise RuntimeError('Checksum mismatch (local: %r, remote: %r)' % (hash_total.hexdigest(), remote_output.rstrip('\n')))
+            digest = hashlib.new(hashname, block).digest()
+            if digest != remote_digest:
+                try:
+                    p.stdin.write(struct.pack('<Q', position))
+                    p.stdin.write(block)
+                except IOError:
+                    break
+        p.stdin.flush()
+        (remote_digest_total, _) = p.communicate(None)
+        if remote_digest_total != hash_total.digest():
+            raise RuntimeError('Checksum mismatch after transfer')
 
 if __name__ == '__main__':
     try:
