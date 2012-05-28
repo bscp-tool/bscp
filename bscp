@@ -59,7 +59,14 @@ with open(filename, 'rb+') as f:
         block = sys.stdin.read(blocksize)
         f.seek(position)
         f.write(block)
-    sys.stdout.write('DONE bscp 2a41278c-55e2-4e42-b1b5-847723b45225\n')
+    hash_total = hashlib.new(hashname)
+    f.seek(0)
+    while True:
+        block = f.read(blocksize)
+        if len(block) == 0:
+            break
+        hash_total.update(block)
+sys.stdout.write('%s\n' % (hash_total.hexdigest(),))
 '''
 
 def bscp(local_filename, remote_host, remote_filename, blocksize=None, hashname=None):
@@ -91,17 +98,19 @@ def bscp(local_filename, remote_host, remote_filename, blocksize=None, hashname=
 
         remote_hexdigest_list = [p.stdout.readline().rstrip('\n') for i in xrange(blockcount)]
 
+        hash_total = hashlib.new(hashname)
         for remote_hexdigest in remote_hexdigest_list:
             position = f.tell()
             block = f.read(blocksize)
+            hash_total.update(block)
             hexdigest = hashlib.new(hashname, block).hexdigest()
             if hexdigest != remote_hexdigest:
                 p.stdin.write('%i\n' % (position,))
                 p.stdin.write(block)
 
         (remote_output, _) = p.communicate(None)
-        if remote_output != 'DONE bscp 2a41278c-55e2-4e42-b1b5-847723b45225\n':
-            raise RemoteError(remote_output)
+        if remote_output != '%s\n' % (hash_total.hexdigest(),):
+            raise RuntimeError('Checksum mismatch (local: %r, remote: %r)' % (hash_total.hexdigest(), remote_output.rstrip('\n')))
 
 if __name__ == '__main__':
     try:
