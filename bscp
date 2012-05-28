@@ -89,6 +89,8 @@ def bscp(local_filename, remote_host, remote_filename, blocksize=None, hashname=
 
         if '\n' in remote_filename:
             raise RuntimeError('Invalid remote filename: %r' % (remote_filename,))
+        if '\n' in hashname:
+            raise RuntimeError('Invalid hash: %r' % (hashname,))
         p.stdin.write('%s\n%i\n%i\n%s\n' % (remote_filename, size, blocksize, hashname))
 
         remote_first = p.stdout.readline()
