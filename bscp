@@ -1,0 +1,130 @@
+#!/usr/bin/env python
+
+# Copyright (C) 2012  Volker Grabsch <vog@notjusthosting.com>
+#
+# Permission is hereby granted, free of charge, to any person obtaining
+# a copy of this software and associated documentation files (the
+# "Software"), to deal in the Software without restriction, including
+# without limitation the rights to use, copy, modify, merge, publish,
+# distribute, sublicense, and/or sell copies of the Software, and to
+# permit persons to whom the Software is furnished to do so, subject
+# to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+# CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+# TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+# SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+import hashlib
+import subprocess
+import sys
+
+class RemoteError(RuntimeError):
+    pass
+
+remote_script = r'''
+import hashlib
+import os
+import os.path
+import sys
+
+filename = sys.stdin.readline().rstrip('\n')
+size = int(sys.stdin.readline().rstrip('\n'))
+blocksize = int(sys.stdin.readline().rstrip('\n'))
+hashname = sys.stdin.readline().rstrip('\n')
+
+if not os.path.exists(filename):
+    # Create sparse file
+    with open(filename, 'wb') as f:
+        f.truncate(size)
+    os.chmod(filename, 0600)
+
+with open(filename, 'rb+') as f:
+    f.seek(0, 2)
+    if f.tell() != size:
+        raise RuntimeError('Unexpected size of file %r (expected size: %i, actual size: %i)' % (filename, size, f.tell()))
+    f.seek(0)
+    sys.stdout.write('OK bscp 2a41278c-55e2-4e42-b1b5-847723b45225\n')
+    while True:
+        block = f.read(blocksize)
+        if len(block) == 0:
+            break
+        hexdigest = hashlib.new(hashname, block).hexdigest()
+        sys.stdout.write('%s\n' % (hexdigest,))
+    sys.stdout.flush()
+    while True:
+        position_s = sys.stdin.readline()
+        if len(position_s) == 0:
+            break
+        position = int(position_s.rstrip('\n'))
+        block = sys.stdin.read(blocksize)
+        f.seek(position)
+        f.write(block)
+    sys.stdout.write('DONE bscp 2a41278c-55e2-4e42-b1b5-847723b45225\n')
+'''
+
+def bscp(local_filename, remote_host, remote_filename, blocksize=None, hashname=None):
+    if blocksize is None:
+        blocksize = 64 * 1024
+    if hashname is None:
+        hashname = 'sha1'
+
+    with open(local_filename, 'rb') as f:
+        f.seek(0, 2)
+        size = f.tell()
+        f.seek(0)
+
+        # Calculate number of blocks, including the last block which may be smaller
+        blockcount = int((size + blocksize - 1) / blocksize)
+
+        remote_command = 'python -c "%s"' % (remote_script,)
+        command = ('ssh', '--', remote_host, '--', remote_command)
+        p = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+        if '\n' in remote_filename:
+            raise RuntimeError('Invalid remote filename: %r' % (remote_filename,))
+        p.stdin.write('%s\n%i\n%i\n%s\n' % (remote_filename, size, blocksize, hashname))
+
+        remote_first = p.stdout.readline()
+        if remote_first != 'OK bscp 2a41278c-55e2-4e42-b1b5-847723b45225\n':
+            (remote_remaining_output, _) = p.communicate(None)
+            raise RemoteError(remote_first + remote_remaining_output)
+
+        remote_hexdigest_list = [p.stdout.readline().rstrip('\n') for i in xrange(blockcount)]
+
+        for remote_hexdigest in remote_hexdigest_list:
+            position = f.tell()
+            block = f.read(blocksize)
+            hexdigest = hashlib.new(hashname, block).hexdigest()
+            if hexdigest != remote_hexdigest:
+                p.stdin.write('%i\n' % (position,))
+                p.stdin.write(block)
+
+        (remote_output, _) = p.communicate(None)
+        if remote_output != 'DONE bscp 2a41278c-55e2-4e42-b1b5-847723b45225\n':
+            raise RemoteError(remote_output)
+
+if __name__ == '__main__':
+    try:
+        local_filename = sys.argv[1]
+        (remote_host, remote_filename) = sys.argv[2].split(':')
+        if len(sys.argv) >= 4:
+            blocksize = int(sys.argv[3])
+        else:
+            blocksize = None
+        if len(sys.argv) >= 5:
+            hashname = sys.argv[4]
+        else:
+            hashname = None
+        assert len(sys.argv) <= 5
+    except:
+        usage = 'bscp SRC HOST:DEST [BLOCKSIZE] [HASH]'
+        sys.stderr.write('Usage:\n\n    %s\n\n' % (usage,))
+        sys.exit(1)
+    bscp(local_filename, remote_host, remote_filename, blocksize, hashname)
