@@ -69,12 +69,7 @@ with open(filename, 'rb+') as f:
 sys.stdout.write('%s\n' % (hash_total.hexdigest(),))
 '''
 
-def bscp(local_filename, remote_host, remote_filename, blocksize=None, hashname=None):
-    if blocksize is None:
-        blocksize = 64 * 1024
-    if hashname is None:
-        hashname = 'sha1'
-
+def bscp(local_filename, remote_host, remote_filename, blocksize, hashname):
     with open(local_filename, 'rb') as f:
         f.seek(0, 2)
         size = f.tell()
@@ -121,11 +116,11 @@ if __name__ == '__main__':
         if len(sys.argv) >= 4:
             blocksize = int(sys.argv[3])
         else:
-            blocksize = None
+            blocksize = 64 * 1024
         if len(sys.argv) >= 5:
             hashname = sys.argv[4]
         else:
-            hashname = None
+            hashname = 'sha1'
         assert len(sys.argv) <= 5
     except:
         usage = 'bscp SRC HOST:DEST [BLOCKSIZE] [HASH]'
