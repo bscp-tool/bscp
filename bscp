@@ -41,7 +41,7 @@ if not os.path.exists(filename):
 with open(filename, 'rb+') as f:
     f.seek(0, 2)
     if f.tell() != size:
-        raise RuntimeError('Unexpected size of file %r (expected size: %i, actual size: %i)' % (filename, size, f.tell()))
+        raise RuntimeError('Size mismatch (local: %i, remote: %i)' % (size, f.tell()))
     f.seek(0)
     sys.stdout.write('OK bscp 2a41278c-55e2-4e42-b1b5-847723b45225\n')
     while True:
