@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html;charset=utf-8">
+    <title>Bscp - Secure and efficient copying of block devices</title>
+  </head>
+  <body>
+    <h1>Bscp - Secure and efficient copying of block devices</h1>
+    <p>
+      Bscp copies a single file or block device over an SSH
+      connection, transferring only the parts that have changed.
+    </p>
+    <p>
+      In other words, it handles the edge case where RSync fails.
+    </p>
+    <h2>Download</h2>
+    <pre>git clone <a href="https://github.com/vog/bscp">https://github.com/vog/bscp</a>.git</pre>
+    <h2>Usage</h2>
+    <pre>bscp SRC HOST:DEST [BLOCKSIZE] [HASH]</pre>
+    <h2>Comparison</h2>
+    <p>
+      Bscp is similar to the classic
+      <a href="http://www.bouncybouncy.net/programs/blocksync.py">blocksync.py</a>,
+      but provides the following advantages:
+    </p>
+    <ul>
+      <li>
+        It doesn't have to be installed on server side.
+      </li>
+      <li>
+        It uses a stronger hash algorithm (SHA-1 instead of MD5),
+        which is also configurable at command line.
+      </li>
+      <li>
+        The client-server protocol is designed to communicate
+        in bigger chunks, so it is more suitable to network
+        connections with bad latency.
+      </li>
+    </ul>
+    <h2>See also</h2>
+    <ul>
+      <li><a href="http://www.bouncybouncy.net/programs/blocksync.py">blocksync.py</a></li>
+      <li><a href="http://theshed.hezmatt.org/lvmsync/">lvmsync</a></li>
+    </ul>
+  </body>
+</html>
