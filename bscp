@@ -66,6 +66,23 @@ with open(filename, 'rb+') as f:
 sys.stdout.write(hash_total.digest())
 '''
 
+class IOCounter:
+    def __init__(self, in_stream, out_stream):
+        self.in_stream = in_stream
+        self.out_stream = out_stream
+        self.in_total = 0
+        self.out_total = 0
+    def read(self, size=None):
+        if size is None:
+            s = self.in_stream.read()
+        else:
+            s = self.in_stream.read(size)
+        self.in_total += len(s)
+        return s
+    def write(self, s):
+        self.out_stream.write(s)
+        self.out_total += len(s)
+
 def bscp(local_filename, remote_host, remote_filename, blocksize, hashname):
     hash_total = hashlib.new(hashname)
     with open(local_filename, 'rb') as f:
@@ -79,12 +96,13 @@ def bscp(local_filename, remote_host, remote_filename, blocksize, hashname):
         remote_command = 'python -c "%s"' % (remote_script,)
         command = ('ssh', '--', remote_host, '--', remote_command)
         p = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        io = IOCounter(p.stdout, p.stdin)
 
-        p.stdin.write(struct.pack('<QQQQ', size, blocksize, len(remote_filename), len(hashname)))
-        p.stdin.write(remote_filename)
-        p.stdin.write(hashname)
+        io.write(struct.pack('<QQQQ', size, blocksize, len(remote_filename), len(hashname)))
+        io.write(remote_filename)
+        io.write(hashname)
 
-        remote_digest_list = [p.stdout.read(hash_total.digestsize) for i in xrange(blockcount)]
+        remote_digest_list = [io.read(hash_total.digestsize) for i in xrange(blockcount)]
 
         for remote_digest in remote_digest_list:
             position = f.tell()
@@ -93,14 +111,17 @@ def bscp(local_filename, remote_host, remote_filename, blocksize, hashname):
             digest = hashlib.new(hashname, block).digest()
             if digest != remote_digest:
                 try:
-                    p.stdin.write(struct.pack('<Q', position))
-                    p.stdin.write(block)
+                    io.write(struct.pack('<Q', position))
+                    io.write(block)
                 except IOError:
                     break
-        p.stdin.flush()
-        (remote_digest_total, _) = p.communicate(None)
+        p.stdin.close()
+
+        remote_digest_total = io.read()
+        p.wait()
         if remote_digest_total != hash_total.digest():
             raise RuntimeError('Checksum mismatch after transfer')
+    return (io.in_total, io.out_total, size)
 
 if __name__ == '__main__':
     try:
@@ -119,4 +140,6 @@ if __name__ == '__main__':
         usage = 'bscp SRC HOST:DEST [BLOCKSIZE] [HASH]'
         sys.stderr.write('Usage:\n\n    %s\n\n' % (usage,))
         sys.exit(1)
-    bscp(local_filename, remote_host, remote_filename, blocksize, hashname)
+    (in_total, out_total, size) = bscp(local_filename, remote_host, remote_filename, blocksize, hashname)
+    speedup = size * 1.0 / (in_total + out_total)
+    sys.stderr.write('in=%i out=%i size=%i speedup=%.2f\n' % (in_total, out_total, size, speedup))
