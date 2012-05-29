@@ -26,7 +26,7 @@ import os.path
 import struct
 import sys
 
-(size, blocksize, filename_len, hashname_len) = struct.unpack('<QQQQ', sys.stdin.read(4 * 8))
+(size, blocksize, filename_len, hashname_len) = struct.unpack('<QQQQ', sys.stdin.read(8+8+8+8))
 filename = sys.stdin.read(filename_len)
 hashname = sys.stdin.read(hashname_len)
 
