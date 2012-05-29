@@ -2,8 +2,19 @@ Bscp - Secure and efficient copying of block devices
 ====================================================
 
 Bscp copies a single file or block device over an SSH
-connection, transferring only the parts that have chaged.
+connection, transferring only the parts that have changed.
+
 In other words, it handles the edge case where RSync fails.
+
+
+Usage
+=====
+
+bscp SRC HOST:DEST [BLOCKSIZE] [HASH]
+
+
+Comparison
+==========
 
 Bscp is similar to the classic blocksync.py [1], but
 provides the following advantages:
@@ -16,12 +27,6 @@ provides the following advantages:
 * The client-server protocol is designed to communicate
   in bigger chunks, so it is more suitable to network
   connections with bad latency.
-
-
-Usage
-=====
-
-    bscp SRC HOST:DEST [BLOCKSIZE] [HASH]
 
 
 See also
