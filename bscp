@@ -39,13 +39,20 @@ if not os.path.exists(filename):
 with open(filename, 'rb+') as f:
     f.seek(0, 2)
     sys.stdout.write(struct.pack('<Q', f.tell()))
+    readremain = size
+    rblocksize = blocksize
     f.seek(0)
     while True:
-        block = f.read(blocksize)
+        if readremain <= blocksize:
+            rblocksize = readremain
+        block = f.read(rblocksize)
         if len(block) == 0:
             break
         digest = hashlib.new(hashname, block).digest()
         sys.stdout.write(digest)
+        readremain -= rblocksize
+        if readremain == 0:
+	    break
     sys.stdout.flush()
     while True:
         position_s = sys.stdin.read(8)
@@ -55,13 +62,20 @@ with open(filename, 'rb+') as f:
         block = sys.stdin.read(blocksize)
         f.seek(position)
         f.write(block)
+    readremain = size
+    rblocksize = blocksize
     hash_total = hashlib.new(hashname)
     f.seek(0)
     while True:
-        block = f.read(blocksize)
+        if readremain <= blocksize:
+            rblocksize = readremain
+        block = f.read(rblocksize)
         if len(block) == 0:
             break
         hash_total.update(block)
+        readremain -= rblocksize
+        if readremain == 0:
+	    break
 sys.stdout.write(hash_total.digest())
 '''
 
@@ -102,8 +116,8 @@ def bscp(local_filename, remote_host, remote_filename, blocksize, hashname):
         io.write(hashname)
 
         (remote_size,) = struct.unpack('<Q', io.read(8))
-        if remote_size != size:
-            raise RuntimeError('Size mismatch (local: %i, remote: %i)' % (size, remote_size))
+        if remote_size < size:
+            raise RuntimeError('Remote size less than local (local: %i, remote: %i)' % (size, remote_size))
         remote_digest_list = [io.read(hash_total.digestsize) for i in xrange(blockcount)]
 
         for remote_digest in remote_digest_list:
