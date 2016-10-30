@@ -18,8 +18,9 @@ import hashlib
 import struct
 import subprocess
 import sys
+import os
 
-remote_script = r'''
+remote_work = r'''
 import hashlib
 import os
 import os.path
@@ -62,6 +63,8 @@ with open(filename, 'rb+') as f:
         block = sys.stdin.read(blocksize)
         f.seek(position)
         f.write(block)
+'''
+remote_checks = r'''
     readremain = size
     rblocksize = blocksize
     hash_total = hashlib.new(hashname)
@@ -106,7 +109,10 @@ def bscp(local_filename, remote_host, remote_filename, blocksize, hashname):
         # Calculate number of blocks, including the last block which may be smaller
         blockcount = int((size + blocksize - 1) / blocksize)
 
-        remote_command = 'python -c "%s"' % (remote_script,)
+	remotechecks = ''
+	if os.environ.get('BSCP_DISABLE_LAST_CHECK') != "1":
+	    remotechecks = remote_checks
+        remote_command = 'python -c "%s%s"' % (remote_work,remotechecks,)
         command = ('ssh', '--', remote_host, '--', remote_command)
         p = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         io = IOCounter(p.stdout, p.stdin)
@@ -133,10 +139,11 @@ def bscp(local_filename, remote_host, remote_filename, blocksize, hashname):
                     break
         p.stdin.close()
 
-        remote_digest_total = io.read()
-        p.wait()
-        if remote_digest_total != hash_total.digest():
-            raise RuntimeError('Checksum mismatch after transfer')
+	if os.environ.get('BSCP_DISABLE_LAST_CHECK') != "1":
+	    remote_digest_total = io.read()
+	    p.wait()
+	    if remote_digest_total != hash_total.digest():
+		raise RuntimeError('Checksum mismatch after transfer')
     return (io.in_total, io.out_total, size)
 
 if __name__ == '__main__':
@@ -153,7 +160,7 @@ if __name__ == '__main__':
             hashname = 'sha1'
         assert len(sys.argv) <= 5
     except:
-        usage = 'bscp SRC HOST:DEST [BLOCKSIZE] [HASH]'
+        usage = '[BSCP_DISABLE_LAST_CHECK=1] bscp SRC HOST:DEST [BLOCKSIZE] [HASH]'
         sys.stderr.write('Usage:\n\n    %s\n\n' % (usage,))
         sys.exit(1)
     (in_total, out_total, size) = bscp(local_filename, remote_host, remote_filename, blocksize, hashname)
