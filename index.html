@@ -69,6 +69,12 @@
         which is also configurable at command line.
       </li>
       <li>
+        DEST is allowed to be larger than SRC.
+        In that case,
+        SRC is copied to the beginning of DEST
+        and the end of DEST is untouched.
+      </li>
+      <li>
         The client-server protocol is designed to
         communicate in bigger chunks,
         so it is more suitable to
