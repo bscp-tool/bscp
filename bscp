@@ -121,25 +121,34 @@ def bscp(local_filename, remote_host, remote_filename, blocksize, hashname):
         (remote_size,) = struct.unpack('<Q', io.read(8))
         if remote_size < size:
             raise RuntimeError('Remote size less than local (local: %i, remote: %i)' % (size, remote_size))
-        remote_digest_list = [io.read(hash_total.digestsize) for i in xrange(blockcount)]
-
-        for remote_digest in remote_digest_list:
+        remote_digest_list = [(i,io.read(hash_total.digestsize),
+            sys.stderr.write((''*42)+'Read remote digest [%10d/%10d]'%(i,blockcount)),sys.stderr.flush()
+            ) for i in xrange(blockcount)]
+        sys.stderr.write('\n')
+        for block_num,remote_digest,write,flush in remote_digest_list:
+            sys.stderr.write((''*42)+'Digest local block [%10d/%10d]'%(block_num,blockcount))
+            sys.stderr.flush()
             position = f.tell()
             block = f.read(blocksize)
             hash_total.update(block)
             digest = hashlib.new(hashname, block).digest()
             if digest != remote_digest:
+                sys.stderr.write((''*42)+'Send changed block [%10d/%10d]'%(block_num,blockcount))
+                sys.stderr.flush()
                 try:
                     io.write(struct.pack('<Q', position))
                     io.write(block)
                 except IOError:
                     break
         p.stdin.close()
-
+        sys.stderr.write((''*42)+'Comparing final digest [%10d/%10d]'%(blockcount,blockcount))
+        sys.stderr.flush()
         remote_digest_total = io.read()
         p.wait()
         if remote_digest_total != hash_total.digest():
             raise RuntimeError('Checksum mismatch after transfer')
+        sys.stderr.write((''*42)+'File transfer complete [%10d/%10d]\n'%(blockcount,blockcount))
+        sys.stderr.flush()
     return (io.in_total, io.out_total, size)
 
 if __name__ == '__main__':
