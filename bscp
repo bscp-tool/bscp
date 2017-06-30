@@ -124,7 +124,6 @@ def bscp(local_filename, remote_host, remote_filename, blocksize, hashname):
         remote_digest_list = [(i,io.read(hash_total.digestsize),
             sys.stderr.write((''*42)+'Read remote digest [%10d/%10d]'%(i,blockcount)),sys.stderr.flush()
             ) for i in xrange(blockcount)]
-        sys.stderr.write('\n')
         for block_num,remote_digest,write,flush in remote_digest_list:
             sys.stderr.write((''*42)+'Digest local block [%10d/%10d]'%(block_num,blockcount))
             sys.stderr.flush()
