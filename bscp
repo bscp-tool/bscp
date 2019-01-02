@@ -33,6 +33,11 @@ import sys
 filename = sys.stdin.read(filename_len)
 hashname = sys.stdin.read(hashname_len)
 
+sys.stdout.write(hashlib.new(hashname, filename).digest())
+sys.stdout.flush()
+if sys.stdin.read(2) != 'go':
+    sys.exit()
+
 if not os.path.exists(filename):
     # Create sparse file
     with open(filename, 'wb') as f:
@@ -117,6 +122,13 @@ def bscp(local_filename, remote_host, remote_filename, blocksize, hashname):
         io.write(struct.pack('<QQQQ', size, blocksize, len(remote_filename), len(hashname)))
         io.write(remote_filename)
         io.write(hashname)
+
+        sanity_digest = hashlib.new(hashname, remote_filename).digest()
+        remote_digest = io.read(len(sanity_digest))
+        if remote_digest != sanity_digest:
+            raise RuntimeError('Remote script failed to execute properly')
+        io.write('go')
+        io.out_stream.flush()
 
         (remote_size,) = struct.unpack('<Q', io.read(8))
         if remote_size < size:
