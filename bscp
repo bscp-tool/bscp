@@ -4,6 +4,7 @@
 #
 # * Volker Diels-Grabsch <v@njh.eu>
 # * art0int <zvn_mail@mail.ru>
+# * Matthew Fearnley (matthew.w.fearnley@gmail.com)
 #
 # Permission to use, copy, modify, and/or distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -32,6 +33,12 @@ import sys
 (size, blocksize, filename_len, hashname_len) = struct.unpack('<QQQQ', sys.stdin.read(8+8+8+8))
 filename = sys.stdin.read(filename_len)
 hashname = sys.stdin.read(hashname_len)
+
+sanity_hash = hashlib.new(hashname, filename).digest()
+sys.stdout.write(sanity_hash)
+sys.stdout.flush()
+if sys.stdin.read(2) != 'go':
+    sys.exit()
 
 if not os.path.exists(filename):
     # Create sparse file
@@ -98,6 +105,7 @@ class IOCounter:
     def write(self, s):
         self.out_stream.write(s)
         self.out_total += len(s)
+        self.out_stream.flush()
 
 def bscp(local_filename, remote_host, remote_filename, blocksize, hashname):
     hash_total = hashlib.new(hashname)
@@ -117,6 +125,12 @@ def bscp(local_filename, remote_host, remote_filename, blocksize, hashname):
         io.write(struct.pack('<QQQQ', size, blocksize, len(remote_filename), len(hashname)))
         io.write(remote_filename)
         io.write(hashname)
+
+        sanity_digest = hashlib.new(hashname, remote_filename).digest()
+        remote_digest = io.read(len(sanity_digest))
+        if remote_digest != sanity_digest:
+            raise RuntimeError('Remote script failed to execute properly')
+        io.write('go')
 
         (remote_size,) = struct.unpack('<Q', io.read(8))
         if remote_size < size:
