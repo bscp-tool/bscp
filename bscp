@@ -105,6 +105,7 @@ class IOCounter:
     def write(self, s):
         self.out_stream.write(s)
         self.out_total += len(s)
+        self.out_stream.flush()
 
 def bscp(local_filename, remote_host, remote_filename, blocksize, hashname):
     hash_total = hashlib.new(hashname)
