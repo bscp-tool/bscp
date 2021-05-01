@@ -118,7 +118,7 @@ def bscp(local_filename, remote_host, remote_filename, blocksize, hashname):
         blockcount = int((size + blocksize - 1) / blocksize)
 
         remote_command = 'python -c "%s"' % (remote_script,)
-        command = ('ssh', '--', remote_host, remote_command)
+        command = ('ssh', '-C', '-c', 'aes128-gcm@openssh.com', '--', remote_host, remote_command)
         p = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         io = IOCounter(p.stdout, p.stdin)
 
