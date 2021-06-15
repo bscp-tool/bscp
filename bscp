@@ -135,7 +135,7 @@ def bscp(local_filename, remote_host, remote_filename, blocksize, hashname):
         (remote_size,) = struct.unpack('<Q', io.read(8))
         if remote_size < size:
             raise RuntimeError('Remote size less than local (local: %i, remote: %i)' % (size, remote_size))
-        remote_digest_list = [io.read(hash_total.digestsize) for i in xrange(blockcount)]
+        remote_digest_list = (io.read(hash_total.digestsize) for i in xrange(blockcount))
 
         for remote_digest in remote_digest_list:
             position = f.tell()
