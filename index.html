@@ -40,7 +40,7 @@
     <h2>Usage</h2>
     <pre>bscp SRC HOST:DEST [BLOCKSIZE] [HASH]</pre>
     <p>The default <code>BLOCKSIZE</code> is <code>65536</code> (64 KiB).</p>
-    <p>The default <code>HASH</code> algorithm is <code>sha1</code> (SHA-1), feel free to specify e.g. <code>sha512</code> (SHA-512) instead.</p>
+    <p>The default <code>HASH</code> algorithm is <code>sha256</code> (SHA-256).</p>
     <h2>Comparison</h2>
     <p>
       Bscp is similar to the classic
@@ -52,8 +52,8 @@
         It doesn't have to be installed on server side.
       </li>
       <li>
-        It uses a stronger hash algorithm (SHA-1 instead of MD5) by default,
-        and can use any strong hash algorithm supported by Python,
+        It uses a strong hash algorithm (SHA-256 instead of MD5) by default,
+        and can use even stronger hash algorithms as long as they are supported by Python,
         such as SHA-512 or SHA3-512.
       </li>
       <li>

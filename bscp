@@ -163,7 +163,7 @@ if __name__ == '__main__':
         if len(sys.argv) >= 5:
             hashname = sys.argv[4]
         else:
-            hashname = 'sha1'
+            hashname = 'sha256'
         assert len(sys.argv) <= 5
     except:
         usage = 'bscp SRC HOST:DEST [BLOCKSIZE] [HASH]'
