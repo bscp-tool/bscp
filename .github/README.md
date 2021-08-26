@@ -2,4 +2,4 @@
 
 Please find the project website and documentation at
 
-* https://vog.github.io/bscp/
+* https://bscp-tool.github.io/

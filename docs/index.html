@@ -23,18 +23,6 @@
       a:hover {
         text-decoration: underline;
       }
-      footer {
-        position: absolute;
-        left: 0;
-        top: 0;
-        padding: 5px;
-      }
-      .ribbon {
-        position: absolute;
-        top: 0;
-        right: 0;
-        border: none;
-      }
     </style>
   </head>
   <body>
@@ -47,17 +35,15 @@
       In other words, it handles the edge case where RSync fails.
     </p>
     <h2>Download</h2>
-    <pre>git clone https://github.com/vog/bscp.git</pre>
+    <pre>git clone https://github.com/bscp-tool/bscp-tool.github.io.git</pre>
     <h2>Usage</h2>
     <pre>bscp SRC HOST:DEST [BLOCKSIZE] [HASH]</pre>
-    <p>
-      The default <code>BLOCKSIZE</code> is <code>65536</code> (64 KiB).
-      The default <code>HASH</code> algorithm is <code>sha1</code> (SHA-1).
-    </p>
+    <p>The default <code>BLOCKSIZE</code> is <code>65536</code> (64 KiB).</p>
+    <p>The default <code>HASH</code> algorithm is <code>sha1</code> (SHA-1).</p>
     <h2>Comparison</h2>
     <p>
       Bscp is similar to the classic
-      <a href="http://www.bouncybouncy.net/programs/blocksync.py">blocksync.py</a>,
+      <a href="https://www.bouncybouncy.net/programs/blocksync.py">blocksync.py</a>,
       but provides the following advantages:
     </p>
     <ul>
@@ -81,19 +67,16 @@
         network connections with bad latency.
       </li>
     </ul>
+    <h2>Contact</h2>
+    <ul>
+      <li><a href="https://github.com/bscp-tool/bscp-tool.github.io/issues">Bscp issue tracker</a></li>
+    </ul>
     <h2>See also</h2>
     <ul>
-      <li><a href="http://vog.github.io/shasplit/">Shasplit</a></li>
-      <li><a href="http://www.bouncybouncy.net/programs/blocksync.py">blocksync.py</a></li>
-      <li><a href="http://theshed.hezmatt.org/lvmsync/">lvmsync</a></li>
+      <li><a href="https://vog.github.io/shasplit">Shasplit</a></li>
+      <li><a href="https://www.bouncybouncy.net/programs/blocksync.py">blocksync.py</a></li>
+      <li><a href="https://theshed.hezmatt.org/lvmsync/">lvmsync</a></li>
       <li><a href="https://github.com/vog/scs">Scs</a></li>
     </ul>
-    <footer>
-      <a href="https://njh.eu/">&#x2190; Not Just Hacking</a>
-    </footer>
-    <a href="https://github.com/vog/bscp" target="_blank">
-      <!-- https://s3.amazonaws.com/github/ribbons/forkme_right_gray_6d6d6d.png -->
-      <img class="ribbon" src="index-forkme.png" alt="Fork me on GitHub">
-    </a>
   </body>
 </html>
