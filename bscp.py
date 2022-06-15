@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Copyright (C) 2012-2021  The Bscp Authors <https://github.com/bscp/bscp/graphs/contributors>
 #
@@ -26,25 +26,29 @@ import os.path
 import struct
 import sys
 
-(size, blocksize, filename_len, hashname_len) = struct.unpack('<QQQQ', sys.stdin.read(8+8+8+8))
-filename = sys.stdin.read(filename_len)
-hashname = sys.stdin.read(hashname_len)
+(size, blocksize, filename_len, hashname_len) = struct.unpack('<QQQQ', sys.stdin.buffer.read(8+8+8+8))
+filename_b = sys.stdin.buffer.read(filename_len)
+filename = filename_b.decode('utf-8')
+hashname_b = sys.stdin.buffer.read(hashname_len)
+hashname = hashname_b.decode('utf-8')
 
-sanity_hash = hashlib.new(hashname, filename).digest()
-sys.stdout.write(sanity_hash)
+sanity_hash = hashlib.new(hashname, filename_b).digest()
+sys.stdout.buffer.write(sanity_hash)
 sys.stdout.flush()
-if sys.stdin.read(2) != 'go':
+if sys.stdin.buffer.read(2) != b'go':
     sys.exit()
 
-if not os.path.exists(filename):
+if os.path.isfile(filename) or not os.path.exists(filename):
     # Create sparse file
     with open(filename, 'wb') as f:
         f.truncate(size)
-    os.chmod(filename, 0600)
+    os.chmod(filename, 0o0600)
+else:
+    sys.exit()
 
 with open(filename, 'rb+') as f:
     f.seek(0, 2)
-    sys.stdout.write(struct.pack('<Q', f.tell()))
+    sys.stdout.buffer.write(struct.pack('<Q', f.tell()))
     readremain = size
     rblocksize = blocksize
     f.seek(0)
@@ -55,17 +59,17 @@ with open(filename, 'rb+') as f:
         if len(block) == 0:
             break
         digest = hashlib.new(hashname, block).digest()
-        sys.stdout.write(digest)
+        sys.stdout.buffer.write(digest)
         readremain -= rblocksize
         if readremain == 0:
-	    break
+	        break
     sys.stdout.flush()
     while True:
-        position_s = sys.stdin.read(8)
+        position_s = sys.stdin.buffer.read(8)
         if len(position_s) == 0:
             break
         (position,) = struct.unpack('<Q', position_s)
-        block = sys.stdin.read(blocksize)
+        block = sys.stdin.buffer.read(blocksize)
         f.seek(position)
         f.write(block)
     readremain = size
@@ -81,8 +85,8 @@ with open(filename, 'rb+') as f:
         hash_total.update(block)
         readremain -= rblocksize
         if readremain == 0:
-	    break
-sys.stdout.write(hash_total.digest())
+	        break
+    sys.stdout.buffer.write(hash_total.digest())
 '''
 
 class IOCounter:
@@ -113,25 +117,30 @@ def bscp(local_filename, remote_host, remote_filename, blocksize, hashname):
         # Calculate number of blocks, including the last block which may be smaller
         blockcount = int((size + blocksize - 1) / blocksize)
 
-        remote_command = 'python -c "%s"' % (remote_script,)
-        command = ('ssh', '--', remote_host, remote_command)
+        if remote_host == "localhost":
+            command = ('python3', '-c', remote_script)
+        else:
+            remote_command = 'python3 -c "%s"' % (remote_script,)
+            command = ('ssh', '--', remote_host, remote_command)
         p = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         io = IOCounter(p.stdout, p.stdin)
 
-        io.write(struct.pack('<QQQQ', size, blocksize, len(remote_filename), len(hashname)))
-        io.write(remote_filename)
-        io.write(hashname)
+        remote_filename_b = remote_filename.encode()
+        hashname_b = hashname.encode()
+        io.write(struct.pack('<QQQQ', size, blocksize, len(remote_filename_b), len(hashname_b)))
+        io.write(remote_filename_b)
+        io.write(hashname_b)
 
-        sanity_digest = hashlib.new(hashname, remote_filename).digest()
+        sanity_digest = hashlib.new(hashname, remote_filename_b).digest()
         remote_digest = io.read(len(sanity_digest))
         if remote_digest != sanity_digest:
             raise RuntimeError('Remote script failed to execute properly')
-        io.write('go')
+        io.write(b'go')
 
         (remote_size,) = struct.unpack('<Q', io.read(8))
         if remote_size < size:
             raise RuntimeError('Remote size less than local (local: %i, remote: %i)' % (size, remote_size))
-        remote_digest_list = [io.read(hash_total.digestsize) for i in xrange(blockcount)]
+        remote_digest_list = [io.read(hash_total.digest_size) for i in range(blockcount)]
 
         for remote_digest in remote_digest_list:
             position = f.tell()
@@ -144,29 +153,37 @@ def bscp(local_filename, remote_host, remote_filename, blocksize, hashname):
                     io.write(block)
                 except IOError:
                     break
+
+        local_digest_total = hash_total.digest();
         p.stdin.close()
 
-        remote_digest_total = io.read()
+        remote_digest_total = io.read(hash_total.digest_size)
         p.wait()
-        if remote_digest_total != hash_total.digest():
+        if remote_digest_total != local_digest_total:
             raise RuntimeError('Checksum mismatch after transfer')
     return (io.in_total, io.out_total, size)
 
 if __name__ == '__main__':
     try:
         local_filename = sys.argv[1]
-        (remote_host, remote_filename) = sys.argv[2].split(':')
+        dest = sys.argv[2]
+        if ":" in dest:
+            (remote_host, remote_filename) = sys.argv[2].split(':', maxsplit=1)
+        else:
+            remote_filename = dest
+            remote_host = "localhost"
+
         if len(sys.argv) >= 4:
             blocksize = int(sys.argv[3])
         else:
-            blocksize = 64 * 1024
+            blocksize = 4 * 1024 * 1024
         if len(sys.argv) >= 5:
             hashname = sys.argv[4]
         else:
-            hashname = 'sha1'
+            hashname = 'sha3_512'
         assert len(sys.argv) <= 5
     except:
-        usage = 'bscp SRC HOST:DEST [BLOCKSIZE] [HASH]'
+        usage = 'bscp SRC [HOST:]DEST [BLOCKSIZE] [HASH]'
         sys.stderr.write('Usage:\n\n    %s\n\n' % (usage,))
         sys.exit(1)
     (in_total, out_total, size) = bscp(local_filename, remote_host, remote_filename, blocksize, hashname)

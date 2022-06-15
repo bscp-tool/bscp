@@ -1,0 +1,20 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: bscp",
+            "type": "python",
+            "request": "launch",
+            "program": "bscp",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args":[
+                "/home/cori/khadas/VIM3_Ubuntu-gnome-focal_Linux-5.16-rc2_arm64_SD-USB_V1.0.9-211217.img",
+                "/dev/sda"
+            ]
+        }
+    ]
+}
