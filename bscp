@@ -19,6 +19,9 @@ import struct
 import subprocess
 import sys
 
+if sys.version_info < (3, 0):
+    range = xrange
+
 remote_script = r'''
 import hashlib
 import os
@@ -26,25 +29,35 @@ import os.path
 import struct
 import sys
 
-(size, blocksize, filename_len, hashname_len) = struct.unpack('<QQQQ', sys.stdin.read(8+8+8+8))
-filename = sys.stdin.read(filename_len)
-hashname = sys.stdin.read(hashname_len)
+if sys.version_info < (3, 0):
+    stdin_buffer = sys.stdin
+    stdout_buffer = sys.stdout
+    range = xrange
+else:
+    stdin_buffer = sys.stdin.buffer
+    stdout_buffer = sys.stdout.buffer
 
-sanity_hash = hashlib.new(hashname, filename).digest()
-sys.stdout.write(sanity_hash)
-sys.stdout.flush()
-if sys.stdin.read(2) != 'go':
+(size, blocksize, filename_len, hashname_len) = struct.unpack('<QQQQ', stdin_buffer.read(8+8+8+8))
+filename_bytes = stdin_buffer.read(filename_len)
+hashname_bytes = stdin_buffer.read(hashname_len)
+filename = filename_bytes.decode('utf-8')
+hashname = hashname_bytes.decode('ascii')
+
+sanity_hash = hashlib.new(hashname, filename_bytes).digest()
+stdout_buffer.write(sanity_hash)
+stdout_buffer.flush()
+if stdin_buffer.read(2) != b'go':
     sys.exit()
 
 if not os.path.exists(filename):
     # Create sparse file
     with open(filename, 'wb') as f:
         f.truncate(size)
-    os.chmod(filename, 0600)
+    os.chmod(filename, 0o600)
 
 with open(filename, 'rb+') as f:
     f.seek(0, 2)
-    sys.stdout.write(struct.pack('<Q', f.tell()))
+    stdout_buffer.write(struct.pack('<Q', f.tell()))
     readremain = size
     rblocksize = blocksize
     f.seek(0)
@@ -55,17 +68,17 @@ with open(filename, 'rb+') as f:
         if len(block) == 0:
             break
         digest = hashlib.new(hashname, block).digest()
-        sys.stdout.write(digest)
+        stdout_buffer.write(digest)
         readremain -= rblocksize
         if readremain == 0:
-	    break
-    sys.stdout.flush()
+            break
+    stdout_buffer.flush()
     while True:
-        position_s = sys.stdin.read(8)
+        position_s = stdin_buffer.read(8)
         if len(position_s) == 0:
             break
         (position,) = struct.unpack('<Q', position_s)
-        block = sys.stdin.read(blocksize)
+        block = stdin_buffer.read(blocksize)
         f.seek(position)
         f.write(block)
     readremain = size
@@ -81,8 +94,8 @@ with open(filename, 'rb+') as f:
         hash_total.update(block)
         readremain -= rblocksize
         if readremain == 0:
-	    break
-sys.stdout.write(hash_total.digest())
+            break
+stdout_buffer.write(hash_total.digest())
 '''
 
 class IOCounter:
@@ -104,6 +117,8 @@ class IOCounter:
         self.out_stream.flush()
 
 def bscp(local_filename, remote_host, remote_filename, blocksize, hashname):
+    remote_filename_bytes = remote_filename.encode('utf-8')
+    hashname_bytes = hashname.encode('ascii')
     hash_total = hashlib.new(hashname)
     with open(local_filename, 'rb') as f:
         f.seek(0, 2)
@@ -115,23 +130,23 @@ def bscp(local_filename, remote_host, remote_filename, blocksize, hashname):
 
         remote_command = 'python -c "%s"' % (remote_script,)
         command = ('ssh', '--', remote_host, remote_command)
-        p = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        p = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=None)
         io = IOCounter(p.stdout, p.stdin)
 
-        io.write(struct.pack('<QQQQ', size, blocksize, len(remote_filename), len(hashname)))
-        io.write(remote_filename)
-        io.write(hashname)
+        io.write(struct.pack('<QQQQ', size, blocksize, len(remote_filename_bytes), len(hashname_bytes)))
+        io.write(remote_filename_bytes)
+        io.write(hashname_bytes)
 
-        sanity_digest = hashlib.new(hashname, remote_filename).digest()
+        sanity_digest = hashlib.new(hashname, remote_filename_bytes).digest()
         remote_digest = io.read(len(sanity_digest))
         if remote_digest != sanity_digest:
             raise RuntimeError('Remote script failed to execute properly')
-        io.write('go')
+        io.write(b'go')
 
         (remote_size,) = struct.unpack('<Q', io.read(8))
         if remote_size < size:
             raise RuntimeError('Remote size less than local (local: %i, remote: %i)' % (size, remote_size))
-        remote_digest_list = [io.read(hash_total.digestsize) for i in xrange(blockcount)]
+        remote_digest_list = [io.read(hash_total.digest_size) for i in range(blockcount)]
 
         for remote_digest in remote_digest_list:
             position = f.tell()
